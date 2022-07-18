@@ -1,0 +1,43 @@
+from coefficients import coeff_1 as c_1
+from coefficients import coeff_2 as c_2
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import newton
+
+# Setting up the physical quantities
+
+max_radius = 0.92                               # radius of the brb
+max_current = 7000                              # maximum current value for the torroidal field coil
+num_points = 10000
+r = np.linspace(0, max_radius, num_points)
+i = np.linspace(0, max_current, num_points)
+
+c1_abs = lambda r: c_1(r, i)                    # lambda functions to get the coefficients 1 and 2 as a function of radius
+c2_abs = lambda r: c_2(r, i)
+
+zero_c1 = newton(c1_abs, i * 10**-6)            # creates an array of radius values for which the coefficients 1 and 2 are zero
+zero_c2 = newton(c2_abs, i * 10**-6)            # zeroes are computed using the Newton-Raphson method
+
+difference = np.abs(zero_c1 - zero_c2)      
+indices = np.argwhere(np.isnan(difference))     # getting rid of the NaN values and setting it to zero
+difference[indices] = 0
+i[indices] = 0
+
+z = np.polyfit(i, difference, 2)                # fitting a polynomial function of degree 2 to the data points
+p = np.poly1d(z)
+print(p)
+
+ind = np.argwhere(p(i) > 9.45 * 10**-4)         # to get rid of the outliers and setting their value to zero
+p[ind] = 0
+i[ind] = 0
+
+# Plotting the difference between the coefficients 1 and 2 for different values of current
+plt.figure()
+
+plt.plot(i, difference, '.', label='data points')
+plt.plot(i, p(i), '--', label='best-fit')
+plt.xlabel('Current')
+plt.ylabel('Difference')
+plt.title('Current vs. Difference between zero points of coefficients 1 and 2')
+plt.legend()
+plt.show()
