@@ -7,5 +7,5 @@ def set_params():
 
 def get_config(config_path='./simulation_config.yml'):
     with open(config_path, 'r') as yml_file:
-        config = yaml.load(yml_file)
+        config = yaml.safe_load(yml_file)
     return config
