@@ -26,16 +26,42 @@ def get_helmholtz_field(r_array, config):
     # TODO: Change the math to allow a non-constant helmholtz field.
     return np.ones_like(r_array)
 
-def get_beta_correction_factor(r_array, config):
-    """Get the factor to correct the helmholtz field by."""
-    beta = (1 + np.cos(np.pi * r_array)) * (config['background']['beta_at_0'] - config['background']['beta_at_R']) / 2 + config['background']['beta_at_R']
-    factor = 1 / (beta + 1)**0.5
-    return factor
+def get_beta(r_array, config):
+    """
+    Get the plasma beta.
+
+    Parameters
+    ----------
+    r_array : np.array
+        Array of `r` values in simulation units. `r = 1` is the position of `beta_at_R`.
+    """
+    if config['background']['profile'] == 'cos':
+        beta = (1 + np.cos(np.pi * r_array)) * (config['background']['beta_at_0'] - config['background']['beta_at_R']) / 2 + config['background']['beta_at_R']
+    elif config['background']['profile'] == 'gaussian':
+        A = config['background']['beta_at_0']
+        B = -1 / config['domain']['r_end']**2 * np.log(config['background']['beta_at_R'] / config['background']['beta_at_0'])
+        beta = A * np.exp(-B * r_array**2)
+    else:
+        raise ValueError("The `background/profile` in the config file is not allowed. Possible profiles are 'cos' and 'gaussian'.")
+
+    return beta
 
 def get_background_field(r_array, config):
+    """
+    Get the `z` and `phi` background magnetic field at different `r` values.
+
+    Parameters
+    ----------
+    r_array : np.array
+        Array of `r` values in simulation units. `r = 1` is the position of `beta_at_R`.
+
+    Returns
+    -------
+    b_z, b_r : np.array[float]
+    """
     helmholtz = get_helmholtz_field(r_array, config)
 
-    background = helmholtz * get_beta_correction_factor(r_array, config)
+    background = helmholtz * 1 / (get_beta(r_array, config) + 1)**0.5
     return background
 
 
@@ -43,7 +69,8 @@ if __name__=="__main__":
     config = get_config()
     r_values = np.linspace(0, 1.5)
     B_H = get_helmholtz_field(r_values, config)
+    beta = get_beta(r_values, config)
 
     import matplotlib.pyplot as plt
-    plt.plot(r_values, B_H)
+    plt.plot(r_values, beta)
     plt.show()
