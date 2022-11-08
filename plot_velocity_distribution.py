@@ -13,11 +13,18 @@ r_start = config['domain']['r_start']
 r_end = config['domain']['r_end']
 dealias = config['domain']['dealiasing_factor']
 
-r_basis = de.Chebyshev('r', n, interval=(r_start, r_end), dealias=dealias)
-domain = de.Domain([r_basis], grid_dtype=np.float64)
+# r_basis = de.Chebyshev('r', n, interval=(r_start, r_end), dealias=dealias)
+# domain = de.Domain([r_basis], grid_dtype=np.float64)
 
-r = domain.grid(0)
-xi_t = de.Field(domain, name='xi_t', scales=1)
+rcoord = de.Coordinate('r')
+dist = de.Distributor(rcoord, dtype=np.float64)
+rbasis = de.Chebyshev(rcoord, size=n, bounds=(r_start,r_end), dealias=dealias)
+
+
+# r = domain.grid(0)
+# xi_t = de.Field(domain, name='xi_t', scales=1)
+r = dist.local_grid(rbasis)
+xi_t = dist.Field(name='xi_t', bases=rbasis)
 
 boundary_velocity_magnitude = config['initialization']['velocity_magnitude']
 boundary_position = config['initialization']['boundary_position'] # Start the wave near to the boundary.
