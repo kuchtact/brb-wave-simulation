@@ -1,5 +1,5 @@
 domain:
-  r_start: 0.05 # Percent of drive radius to use.
+  r_start: 0.01 # Percent of drive radius to use.
   r_end: 1
   num_points: 512
   dealiasing_factor: 1.5
@@ -8,6 +8,7 @@ domain:
 background:
   beta_at_0: 0.05
   beta_at_R: 0.01
+  profile: 'gaussian' # Either 'gaussian' or 'cos' profile.
 free:
   nondimenensionalization: 1
   solver: 'RK222'
@@ -21,9 +22,10 @@ experiment:
   R_drive: 0.92 # m
   B_H_at_0: 0.005 # T
   temperature: 8.01088317e-19 # J
+  ion_mass: 1.672e-27 # kg. Mass of ion. If using Hydrogen then just 1 proton.
 coefficients:
   max_current: 7000 # A
-  current: 5000 # A
+  current: 000 # A
   dr: 0.000001
   r_bound: 0
   r_points: 100000
