@@ -1,14 +1,11 @@
 import numpy as np 
 from dedalus import public as de
-import yaml
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from background_field import get_background_field
+from plasma_parameters import b_z, b_tf, alfven_speed
 from plot_parameters import get_config
-from coefficients import coeff_1 
-from coefficients import coeff_2 
-from coefficients import coeff_3 
-from coefficients import b_tf
+from coefficients import coeff_1, coeff_2, coeff_3
+from screw_pinch.velocity_distribution import get_initial_velocity_distribution, get_initial_position_distribution
 
 config = get_config()
 
@@ -47,10 +44,10 @@ a2['g'] = a2_array
 a3_array = coeff_3(r_grid, config)
 a3 = dist.Field(name='a3', bases=r_basis)
 a3['g'] = a3_array
-Bz0_array = get_background_field(r_grid, config)
+Bz0_array = b_z(r_grid, config)
 Bz0 = dist.Field(name='Bz0', bases=r_basis)
 Bz0['g'] = Bz0_array
-B_tf_array = b_tf(r_grid, config['coefficients']['current'])
+B_tf_array = b_tf(r_grid, config)
 B_tf = dist.Field(name='B_tf', bases=r_basis)
 B_tf['g'] = B_tf_array
 lift = lambda A, n: de.Lift(A, r_basis, n)
@@ -85,26 +82,24 @@ boundary_position = config['initialization']['boundary_position'] # Start the wa
 boundary_thickness = config['initialization']['boundary_thickness']
 
 # Initializing the velocity with a hyperbolic tangent profile on the grid values
-xi_t['g'] = boundary_velocity_magnitude * (1 + np.tanh((r - boundary_position) / boundary_thickness)) / 2
+xi_t['g'] = get_initial_velocity_distribution(r, config)
 
-# TODO: write the formula to accomadate for the magnetic field from the TF coil
-#       write the original code in terms of referencing the config file for the coefficients
-alfven_speed_at_R = (6 * (Bz0_array[-1]**2 + B_tf_array[-1]**2) / (1 - Bz0_array[-1]**2))**0.5
+alfven_speed_at_R = alfven_speed(r_grid[-1], config)
 
 # Initializing the position distribution.
-xi['g'] = (boundary_velocity_magnitude / 2) * (boundary_thickness / alfven_speed_at_R * np.log(np.cosh((r - boundary_position) / boundary_thickness)) + (r - boundary_position) / alfven_speed_at_R + boundary_thickness / alfven_speed_at_R * np.log(2))
+xi['g'] = get_initial_position_distribution(r, config)
 
 # Initializing the position derivative.
 xi_r = dr(xi)
 print("Initialized xi")
 
+# Change scaling of r_grid to match number of points in xi.
+r_grid = r_basis.global_grid(scale=dealiasing_factor)
+
 # Setting up the storage
 xi_list = [np.copy(xi['g'])]
 xi_t_list = [np.copy(xi_t['g'])]
 t_list = [solver.sim_time]
-
-# Change scaling of r_grid to match number of points in xi.
-r_grid = r_basis.global_grid(scale=dealiasing_factor)
 
 # Save period for the simulation
 save_period = 1
@@ -128,21 +123,18 @@ while solver.proceed:
 print("Done solving")
 
 # Change the various lists into arrays for easy plotting.
-xi_list.pop(0)
-xi_array = np.array(xi_list)
-xi_t_list.pop(0)
-xi_t_array = np.vstack(xi_t_list)
-t_list.pop(0)
-t_array = np.array(t_list)
+xi_array = np.array(xi_list[1:])
+xi_t_array = np.vstack(xi_t_list[1:])
+t_array = np.array(t_list[1:])
 
 # Calculate the contour of a particle following the alfven speed.
 from particle_streamline import get_streamline
 
 # Update the Bz0_array to have the correct number of grid points.
-Bz0_array = get_background_field(r_grid, config)
-B_tf_array = b_tf(r_grid, config['coefficients']['current'])
-alfven_speed = (6 * (Bz0_array**2 + B_tf_array**2) / (1 - Bz0_array**2))**0.5
-r_points, t_points = get_streamline(r_grid, -alfven_speed, r_end, r_start)
+Bz0_array = b_z(r_grid, config)
+B_tf_array = b_tf(r_grid, config)
+alfven_speed_array = alfven_speed(r_grid, config)
+r_points, t_points = get_streamline(r_grid, -alfven_speed_array, r_end, r_start)
 print("Got streamlines")
 
 from unit_conversion import Converter
@@ -158,11 +150,17 @@ mesh_plot = color_ax.pcolormesh(t_grid_si, r_grid_si, xi_t_grid_si.T, shading='n
 def time_to_index(t):
     return np.nonzero(t_grid_si > t)[0][0]
 
-end_index = time_to_index(1 * 10**-8)
-num_curves = 10
+end_index = time_to_index(4 * 10**-6)
+num_curves = 40
+
+if end_index < num_curves:
+    end_index = num_curves
+
 color_map = cm.get_cmap('viridis', num_curves)
 for cm_index, data_index in enumerate(np.linspace(0, end_index, num=num_curves, dtype=int)):
     velocity_ax.plot(r_grid_si, xi_t_grid_si[data_index], label='t={:.3f}'.format(t_grid_si[data_index]/(10**(-6))), color=color_map(cm_index))
+
+velocity_ax.plot(converter.to_meter(r), converter.to_meter_per_second(xi_t_list[0]), color='red')
 
 # Plot streamlines following alfven speed.
 num_alfven_curves = 10
@@ -179,11 +177,11 @@ color_ax.set_xlabel(r'$t \, (s)$')
 velocity_ax.set_xlabel(r'$r \, (m)$')
 velocity_ax.set_ylabel(r'$v \, (m/s)$')
 velocity_ax.set_title("Velocity Distribution at Different Time Slices")
+# velocity_ax.legend()
 
 color_ax.set_xlim(0, converter.to_second(config['domain']['end_t']))
 color_ax.set_title("Velocity distribution evolution (TF Current = {})".format(config['coefficients']['current']))
 plt.tight_layout()
 
 plt.savefig('./plots/simulation_results_flipped_axis.png', format='png', dpi=300)
-plt.legend()
 plt.show()
