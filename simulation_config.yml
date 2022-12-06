@@ -1,31 +1,32 @@
 domain:
-  r_start: 0.01 # Percent of drive radius to use.
+  r_start: 0.05 # Percent of drive radius to use.
   r_end: 1
   num_points: 512
   dealiasing_factor: 1.5
   dt: 0.0001
   end_t: 0.1
 background:
-  beta_at_0: 0.05
-  beta_at_R: 0.01
+  beta_at_0: 0.1
+  beta_at_R: 0.0001
   profile: 'gaussian' # Either 'gaussian' or 'cos' profile.
 free:
   nondimenensionalization: 1
   solver: 'RK222'
 initialization:
   velocity_magnitude: 3 # Calculated from nondimensionalization notebook.
-  boundary_position: 0.95
-  boundary_thickness: 0.02
+  boundary_position: 0.90
+  boundary_thickness: 0.05
 experiment:
   R_helmholtz: 2.035 # m
   L_helmholtz: 2.33 # m (Distance between center of two coils since not actually helmholtz coil)
-  R_drive: 0.92 # m
-  B_H_at_0: 0.005 # T
-  temperature: 8.01088317e-19 # J
+  R_drive: 0.60 # m
+  B_H_at_0: 0.010 # T
+  # temperature: 1.602177e-19 # J (1 eV)
+  temperature: 8.010885e-19 # J (5 eV)
   ion_mass: 1.672e-27 # kg. Mass of ion. If using Hydrogen then just 1 proton.
 coefficients:
   max_current: 7000 # A
   current: 000 # A
-  dr: 0.000001
+  dr: 0.01
   r_bound: 0
   r_points: 100000

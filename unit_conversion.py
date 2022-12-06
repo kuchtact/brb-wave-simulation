@@ -9,7 +9,7 @@ class Converter:
         self.m_e = 9.1093837015e-31 # kg
         self.mu_0 = 1.25663706212e-10 # H/m
 
-        self.t_0 = (self.C * 3 * (self.m_i + self.m_e) * self.R**2 / (2 * self.T_0))**0.5
+        self.t_0 = (self.C * 3 * (self.m_i + self.m_e) * self.R**2 / (self.T_0))**0.5
 
     def to_tesla(self, B_):
         return B_ * self.B_H

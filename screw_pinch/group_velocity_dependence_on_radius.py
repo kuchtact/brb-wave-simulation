@@ -42,7 +42,7 @@ else:
 
 
 # Plotting the group velocity at different values of radius along with the zero point for coefficients 1 and 2
-plt. figure()
+plt.figure()
 
 plt.plot(r, get_group_velocity(k, r, i).real, label = 'Real part of the group velocity')
 plt.plot(zero_c1, 0, marker='o')

@@ -3,6 +3,7 @@ from unit_conversion import Converter
 from plot_parameters import get_config
 mu_0 = 4 * np.pi * 10**(-7)
 default_config = get_config()
+gamma = 5 / 3
 
 
 def b_tf(r, config=None, i=None):
@@ -127,6 +128,26 @@ def n_0(r, config=None):
 
     return p_0(r, config) / config['experiment']['temperature']
 
+def rho_0(r, config=None):
+    """
+    Get the plasma mass density in experimental units assuming constant temperature.
+    
+    Parameters
+    ----------
+    r : np.array of float
+        `r` position in simulation units.
+    config : dict or None
+        The config dictionary. If `None` then use the default config.
+
+    Returns
+    -------
+    EXPERIMENTAL
+    """
+    if config is None:
+        config = default_config
+
+    return n_0(r, config) * config['experiment']['ion_mass']
+
 def alfven_speed(r, config=None):
     """
     Get the alfven speed.
@@ -146,3 +167,54 @@ def alfven_speed(r, config=None):
         config = default_config
 
     return (6 * (b_z(r, config)**2 + b_tf(r, config)**2) / (1 - b_z(r, config)**2))**0.5
+
+def sound_speed(r, config=None):
+    """
+    Get the sound speed.
+
+    Parameters
+    ----------
+    r : np.array of float
+        `r` position in simulation units.
+    config : dict or None
+        The config dictionary. If `None` then use the default config.
+
+    Returns
+    -------
+    SIMULATION
+
+    Notes
+    -----
+    We've used the calculation that can be found here: https://farside.ph.utexas.edu/teaching/plasma/lectures/node65.html
+    Since p_0 = n_0 T_0 and rho_0 = (m_i + m_e) * n_0 ~= m_i * n_0 then v_s ~= (gamma * T_0 / m_i)**0.5
+    """
+    if config is None:
+        config = default_config
+
+    converter = Converter(config)
+
+    return converter.from_meter_per_second((gamma * config['experiment']['temperature'] / config['experiment']['ion_mass'])**0.5) * np.ones_like(r)
+
+def fast_magnetosonic_speed(r, config=None, theta=np.pi / 2):
+    """
+    Get the speed of the fast magnetosonic wave.
+
+    Parameters
+    ----------
+    r : np.array of float
+        `r` position in simulation units.
+    config : dict or None
+        The config dictionary. If `None` then use the default config.
+    theta : float, default=np.pi / 2
+        Angle in radians between wave vector and background field.
+
+    Returns
+    -------
+    SIMULATION
+    """
+    if config is None:
+        config = default_config
+
+    v_a = alfven_speed(r, config)
+    v_s = sound_speed(r, config)
+    return (0.5 * (v_a**2 + v_s**2 + ((v_a**2 + v_s**2)**2 - 4 * v_a**2 * v_s**2 * np.cos(theta)**2)**0.5))**0.5
