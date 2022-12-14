@@ -54,6 +54,7 @@ B_tf['g'] = B_tf_array
 lift = lambda A, n: de.Lift(A, r_basis, n)
 dr = lambda A: de.Differentiate(A, r_coord)
 t = dist.Field()
+# boundary_func = lambda t: boundary_velocity_magnitude * np.sin(2 * np.pi * 5 * t) + 0.4 * boundary_velocity_magnitude * np.sin(2 * np.pi * 40 * t)
 boundary_func = lambda t: boundary_velocity_magnitude * np.sin(2 * np.pi * 5 * t)
 print("Made substitutions")
 
@@ -157,75 +158,102 @@ xi_t_grid_si = converter.to_meter_per_second(xi_t_array)
 xi_t_r_grid_si = converter.from_second(xi_t_r_array)
 
 # PLOTTING
-plot_velocity_evolution = False
-plot_bdot_evolution = False
+plot_velocity_evolution = True
+plot_bdot_evolution = True
 plot_discrete_velocities = False
-plots_for_paper = True
+plots_for_paper = False
 
 if plot_velocity_evolution:
-    plt.figure()
-    mesh_plot = plt.pcolormesh(t_grid_si, r_grid_si, xi_t_grid_si.T, shading='nearest', edgecolors='none')
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": "Helvetica",
+    })
+
+    fig = plt.figure()
+    fig.set_size_inches(4, 3.4)
+
+    gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.08], wspace=0.06)
+    (velocity_ax, vel_cbar_ax) = gs.subplots()
+
+    time_factor = 10**6
+    velocity_array = xi_t_grid_si.T * 10**-3
+    velocity_plot = velocity_ax.pcolormesh(time_factor * t_grid_si, r_grid_si, velocity_array, shading='nearest', edgecolors='none', rasterized=True)
     def time_to_index(t):
         return np.nonzero(t_grid_si > t)[0][0]
 
-    # Plot streamlines following alfven speed.
+    # Plot streamlines following magnetosonic and alfven speed.
     num_curves = 5
-    for t_offset in np.linspace(0, config['domain']['end_t'], num=num_curves + 2)[1:-1]:
+    for i, t_offset in enumerate(np.linspace(0, config['domain']['end_t'], num=num_curves + 2)[:-1]):
         # ax.plot(converter.to_meter(r_points), converter.to_second(t_points + t_offset), color='red')
-        plt.plot(converter.to_second(alfven_t_points + t_offset), converter.to_meter(alfven_r_points), color='red')
+        if i == 0:
+            v_A_line, = velocity_ax.plot(time_factor * converter.to_second(alfven_t_points + t_offset), converter.to_meter(alfven_r_points), color='red')
+            v_ms_line, = velocity_ax.plot(time_factor * converter.to_second(magnetosonic_t_points + t_offset), converter.to_meter(magnetosonic_r_points), color='orange')
+        else:
+            velocity_ax.plot(time_factor * converter.to_second(alfven_t_points + t_offset), converter.to_meter(alfven_r_points), color='red')
+            velocity_ax.plot(time_factor * converter.to_second(magnetosonic_t_points + t_offset), converter.to_meter(magnetosonic_r_points), color='orange')
 
-    # Plot streamlines following magnetosonic speed.
-    num_magnetosonic_curves = 5
-    for t_offset in np.linspace(0, config['domain']['end_t'], num=num_magnetosonic_curves + 2)[1:-1]:
-        # ax.plot(converter.to_meter(r_points), converter.to_second(t_points + t_offset), color='red')
-        plt.plot(converter.to_second(magnetosonic_t_points + t_offset), converter.to_meter(magnetosonic_r_points), color='orange')
+    cbar = fig.colorbar(velocity_plot, cax=vel_cbar_ax)
+    cbar.set_label(r'$\partial_t \xi$ (km/s)')
+    # cbar.ax.ticklabel_format(scilimits=(0, 0))
+    velocity_ax.set_ylabel(r'$r$ (m)')
+    velocity_ax.set_xlabel(r'$t$ ($\mu$s)')
 
-    cbar = plt.colorbar(mesh_plot)
-    cbar.set_label(r'$v \, (m/s)$')
-    cbar.ax.ticklabel_format(scilimits=(0, 0))
-    plt.ylabel(r'$r \, (m)$')
-    plt.xlabel(r'$t \, (s)$')
-
-    plt.xlim(0, converter.to_second(config['domain']['end_t']))
-    plt.title("Velocity distribution evolution (TF Current = {})".format(config['coefficients']['current']))
-
-    plt.savefig('./plots/velocity_evolution.png', format='png', dpi=300)
+    velocity_ax.set_xlim(0, time_factor * converter.to_second(config['domain']['end_t']))
+    velocity_ax.set_title('Plasma Velocity vs. Time')
+    velocity_ax.legend([v_ms_line, v_A_line], [r'$v_{ms}$', r'$v_A$'])
+    
+    plt.subplots_adjust(bottom=0.13, top=.93, left=0.13, right=0.88)
+    plt.savefig('./plots/velocity_evolution.pdf', format='pdf', dpi=300)
 
 if plot_bdot_evolution:
-    plt.figure()
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": "Helvetica",
+    })
+
+    fig = plt.figure()
+    fig.set_size_inches(4, 3.4)
+
+    gs = fig.add_gridspec(1, 2, width_ratios=[1, 0.08], wspace=0.06)
+    (bdot_ax, bdot_cbar_ax) = gs.subplots()
+
+    time_factor = 10**6
+    
     # Convert the velocity to dB_z / dt using the frozen in field effect and density conservation.
     b_z_si = converter.to_tesla(b_z(r_grid_si))
     dr = 10**-6
     db_z_dr_si = converter.to_tesla((b_z(r_grid_si + dr) - b_z(r_grid_si - dr)) / 2)
     dbz_dt = - 1 / r_grid_si[:, None] * (xi_t_grid_si.T * b_z_si[:, None] + r_grid_si[:, None] * xi_t_r_grid_si.T * b_z_si[:, None] + r_grid_si[:, None] * xi_t_grid_si.T * db_z_dr_si[:, None])
+    dbz_dt *= 10**-3 # Change to kT / s.
 
     # mesh_plot = plt.pcolormesh(t_grid_si, r_grid_si, dbz_dt, shading='nearest', edgecolors='none', cmap='seismic', vmin=-2000, vmax=2000)
-    mesh_plot = plt.pcolormesh(t_grid_si, r_grid_si, dbz_dt, shading='nearest', edgecolors='none', cmap='seismic', vmin=-np.max(np.abs(dbz_dt)), vmax=np.max(np.abs(dbz_dt)), rasterized=True)
-    def time_to_index(t):
-        return np.nonzero(t_grid_si > t)[0][0]
+    bdot_plot = bdot_ax.pcolormesh(time_factor * t_grid_si, r_grid_si, dbz_dt, shading='nearest', edgecolors='none', cmap='seismic', vmin=-np.max(np.abs(dbz_dt)), vmax=np.max(np.abs(dbz_dt)), rasterized=True)
 
-    # Plot streamlines following alfven speed.
+    # Plot streamlines following magnetosonic and alfven speed.
     num_curves = 5
-    for t_offset in np.linspace(0, config['domain']['end_t'], num=num_curves + 2)[1:-1]:
+    for i, t_offset in enumerate(np.linspace(0, config['domain']['end_t'], num=num_curves + 2)[:-1]):
         # ax.plot(converter.to_meter(r_points), converter.to_second(t_points + t_offset), color='red')
-        plt.plot(converter.to_second(alfven_t_points + t_offset), converter.to_meter(alfven_r_points), color='red')
+        if i == 0:
+            v_A_line, = bdot_ax.plot(time_factor * converter.to_second(alfven_t_points + t_offset), converter.to_meter(alfven_r_points), color='red')
+            v_ms_line, = bdot_ax.plot(time_factor * converter.to_second(magnetosonic_t_points + t_offset), converter.to_meter(magnetosonic_r_points), color='orange')
+        else:
+            bdot_ax.plot(time_factor * converter.to_second(alfven_t_points + t_offset), converter.to_meter(alfven_r_points), color='red')
+            bdot_ax.plot(time_factor * converter.to_second(magnetosonic_t_points + t_offset), converter.to_meter(magnetosonic_r_points), color='orange')
 
-    # Plot streamlines following magnetosonic speed.
-    num_magnetosonic_curves = 5
-    for t_offset in np.linspace(0, config['domain']['end_t'], num=num_magnetosonic_curves + 2)[1:-1]:
-        # ax.plot(converter.to_meter(r_points), converter.to_second(t_points + t_offset), color='red')
-        plt.plot(converter.to_second(magnetosonic_t_points + t_offset), converter.to_meter(magnetosonic_r_points), color='orange')
-
-    cbar = plt.colorbar(mesh_plot)
-    cbar.set_label(r'$\dot{B}_z \, (T/s)$')
+    cbar = fig.colorbar(bdot_plot, cax=bdot_cbar_ax)
+    cbar.set_label(r'$\partial_t B_z$ (kT/s)')
     cbar.ax.ticklabel_format(scilimits=(0, 0))
-    plt.ylabel(r'$r \, (m)$')
-    plt.xlabel(r'$t \, (s)$')
+    bdot_ax.set_ylabel(r'$r$ (m)')
+    bdot_ax.set_xlabel(r'$t$ ($\mu$s)')
 
-    plt.xlim(0, converter.to_second(config['domain']['end_t']))
-    plt.title("Magnetic field evolution (TF Current = {})".format(config['coefficients']['current']))
+    bdot_ax.set_xlim(0, time_factor * converter.to_second(config['domain']['end_t']))
+    bdot_ax.set_title(r'$\partial B_z / \partial t$ vs. Time')
+    bdot_ax.legend([v_ms_line, v_A_line], [r'$v_{ms}$', r'$v_A$'])
 
-    plt.savefig('./plots/bdot_evolution.png', format='png', dpi=300)
+    plt.subplots_adjust(bottom=0.13, top=.93, left=0.13, right=0.88)
+    plt.savefig('./plots/bdot_evolution.pdf', format='pdf', dpi=300)
 
 if plot_discrete_velocities:
     plt.figure()
